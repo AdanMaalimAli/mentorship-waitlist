@@ -3,6 +3,7 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { MongoClient } from 'mongodb'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -28,6 +29,7 @@ const EXPERIENCE = new Set(['new', 'some', 'active'])
 const STATUSES = new Set(['pending', 'confirmed', 'waitlist', 'released'])
 const DATA_FILE = path.join(process.env.DATA_DIR || path.join(__dirname, 'data'), 'signups.json')
 const DIST_DIR = path.join(__dirname, '..', 'client', 'dist')
+let reservations = null
 
 loadEnv()
 
@@ -45,7 +47,7 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '20kb' }))
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true })
+  res.json({ ok: true, store: reservations ? 'atlas' : 'file' })
 })
 
 const hits = new Map()
@@ -137,18 +139,30 @@ app.use((error, _req, res, _next) => {
   res.status(500).json({ error: 'Something went wrong.' })
 })
 
-const server = app.listen(PORT, () => {
-  console.log(`Seat book ready at http://127.0.0.1:${PORT}`)
-})
-
-server.on('error', (error) => {
-  if (error.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use.`)
-  } else {
-    console.error(error)
+async function start() {
+  try {
+    await connectDb()
+  } catch (error) {
+    console.error('Could not reach Atlas.', error.message)
+    process.exit(1)
   }
-  process.exit(1)
-})
+
+  const server = app.listen(PORT, () => {
+    const where = reservations ? 'Atlas' : 'a local file'
+    console.log(`Seat book ready at http://127.0.0.1:${PORT} (${where})`)
+  })
+
+  server.on('error', (error) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`Port ${PORT} is already in use.`)
+    } else {
+      console.error(error)
+    }
+    process.exit(1)
+  })
+}
+
+start()
 
 function createReservation(body, rows) {
   const name = clean(body.name, 80)
@@ -306,10 +320,10 @@ function readRows() {
 }
 
 function update(mutator) {
-  const run = queue.then(() => {
-    const rows = read()
+  const run = queue.then(async () => {
+    const rows = await read()
     const outcome = mutator(rows)
-    if (outcome.write) write(rows)
+    if (outcome.write) await write(rows)
     return outcome
   })
   queue = run.then(
@@ -319,7 +333,56 @@ function update(mutator) {
   return run
 }
 
-function read() {
+async function connectDb() {
+  const uri = process.env.MONGODB_URI
+  if (!uri) {
+    console.log('No MONGODB_URI. Saving seats in a local file.')
+    return
+  }
+
+  const client = new MongoClient(uri, { serverSelectionTimeoutMS: 10000 })
+  await client.connect()
+  reservations = client.db(process.env.MONGODB_DB || 'mentorship').collection('reservations')
+  const count = await reservations.countDocuments()
+  const existing = readFile()
+  if (count === 0 && existing.length) {
+    await reservations.insertMany(existing)
+    console.log(`Moved ${existing.length} saved seats into Atlas.`)
+  }
+}
+
+async function read() {
+  if (!reservations) return readFile()
+  return reservations.find({}, { projection: { _id: 0 } }).toArray()
+}
+
+async function write(rows) {
+  if (!reservations) {
+    writeFile(rows)
+    return
+  }
+
+  const stored = rows.map((row) => {
+    const copy = { ...row }
+    delete copy._id
+    return copy
+  })
+  const ids = stored.map((row) => row.id)
+  if (stored.length) {
+    await reservations.bulkWrite(
+      stored.map((row) => ({
+        replaceOne: {
+          filter: { id: row.id },
+          replacement: row,
+          upsert: true,
+        },
+      })),
+    )
+  }
+  await reservations.deleteMany(ids.length ? { id: { $nin: ids } } : {})
+}
+
+function readFile() {
   if (!fs.existsSync(DATA_FILE)) return []
   const raw = fs.readFileSync(DATA_FILE, 'utf8')
   if (!raw.trim()) return []
@@ -328,7 +391,7 @@ function read() {
   return data
 }
 
-function write(rows) {
+function writeFile(rows) {
   fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true })
   fs.writeFileSync(DATA_FILE, `${JSON.stringify(rows, null, 2)}\n`)
 }
