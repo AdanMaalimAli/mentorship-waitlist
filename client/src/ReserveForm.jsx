@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import {
   EXPERIENCE,
   api,
@@ -18,18 +18,12 @@ export default function ReserveForm({ stats, onSaved }) {
     email: '',
     experience: '',
     note: '',
-    paid: false,
     mpesaCode: '',
   })
   const [errors, setErrors] = useState({})
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(null)
-  const codeRef = useRef(null)
-
-  useEffect(() => {
-    if (values.paid) codeRef.current?.focus()
-  }, [values.paid])
 
   function set(key, value) {
     setValues((current) => ({ ...current, [key]: value }))
@@ -47,7 +41,6 @@ export default function ReserveForm({ stats, onSaved }) {
       email: '',
       experience: '',
       note: '',
-      paid: false,
       mpesaCode: '',
     })
   }
@@ -65,7 +58,10 @@ export default function ReserveForm({ stats, onSaved }) {
       return
     }
 
-    const securing = !stats.full && values.paid
+    if (stats.full) {
+      setFormError('Every seat is held. Do not send money until a seat opens.')
+      return
+    }
     setSaving(true)
     setFormError('')
     try {
@@ -78,8 +74,8 @@ export default function ReserveForm({ stats, onSaved }) {
           email: values.email,
           experience: values.experience,
           note: values.note,
-          intent: securing ? 'pay' : 'details',
-          mpesaCode: securing ? values.mpesaCode : '',
+          intent: 'pay',
+          mpesaCode: values.mpesaCode,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -91,13 +87,12 @@ export default function ReserveForm({ stats, onSaved }) {
       setSuccess(data.reservation)
       onSaved?.()
     } catch {
-      setFormError(`I could not save this. Call or WhatsApp ${stats.phoneDisplay} and I will write it down.`)
+      setFormError(`I could not save this. Try again, or WhatsApp the M-Pesa code to ${stats.phoneDisplay}.`)
     } finally {
       setSaving(false)
     }
   }
 
-  const securing = !stats.full && values.paid
   const money = formatMoney(stats.price, stats.currency)
 
   return (
@@ -187,17 +182,13 @@ export default function ReserveForm({ stats, onSaved }) {
           <div className="mt-6 border-t border-dashed border-[#d9d0be] pt-6">
             {stats.full ? (
               <p className="rounded-2xl bg-[#172016] px-4 py-4 text-sm leading-relaxed text-paper">
-                Every seat is held. Leave your details and I will WhatsApp you if one is released. Do not send money until I confirm there is room.
+                Every seat is held. Joining needs a payment, and there is no open seat. Do not send money until one is released.
               </p>
             ) : (
               <PaymentBlock
                 stats={stats}
-                money={money}
-                paid={values.paid}
                 code={values.mpesaCode}
                 codeError={errors.mpesaCode}
-                codeRef={codeRef}
-                onPaid={(checked) => set('paid', checked)}
                 onCode={(code) => set('mpesaCode', code)}
               />
             )}
@@ -211,23 +202,13 @@ export default function ReserveForm({ stats, onSaved }) {
 
           <button
             type="submit"
-            disabled={saving}
+            disabled={saving || stats.full}
             className="mt-5 w-full cursor-pointer rounded-full bg-[#172016] px-4 py-3.5 text-base font-medium text-paper hover:bg-[#2a3824] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {saving ? 'Saving…' : securing ? 'Secure my seat' : 'Save my details'}
+            {saving ? 'Saving…' : 'Join the waitlist'}
           </button>
-          <p className="mt-3 text-center text-sm text-[#4d5647]">
-            Or{' '}
-            <a
-              className="font-medium text-[#172016] underline decoration-[#e4c27a] underline-offset-4"
-              href={whatsappLink(
-                stats.whatsapp,
-                'Hi, I want a seat in the trading mentorship. My name is ',
-              )}
-            >
-              send your details on WhatsApp
-            </a>
-            .
+          <p className="mt-3 text-center text-sm leading-relaxed text-[#4d5647]">
+            Payment is required. Send {money} first, then paste the M-Pesa code.
           </p>
         </form>
       )}
@@ -235,7 +216,7 @@ export default function ReserveForm({ stats, onSaved }) {
   )
 }
 
-function PaymentBlock({ stats, money, paid, code, codeError, codeRef, onPaid, onCode }) {
+function PaymentBlock({ stats, code, codeError, onCode }) {
   return (
     <div>
       <div className="rounded-2xl bg-[#172016] px-4 py-4 text-paper">
@@ -261,69 +242,42 @@ function PaymentBlock({ stats, money, paid, code, codeError, codeRef, onPaid, on
         </div>
       </div>
 
-      <label className="mt-4 flex cursor-pointer items-start gap-3">
-        <input
-          type="checkbox"
-          className="mt-1 size-4 accent-[#172016]"
-          checked={paid}
-          onChange={(event) => onPaid(event.target.checked)}
-        />
-        <span>
-          <span className="font-medium">I have sent {money} to {stats.phoneDisplay}</span>
-          <span className="mt-1 block text-sm leading-relaxed text-[#4d5647]">
-            Leave this off to save your details without holding a seat.
-          </span>
-        </span>
-      </label>
-
-      {paid ? (
-        <div className="mt-4">
-          <Field id="reserve-mpesaCode" label="M-Pesa confirmation code" error={codeError}>
-            <input
-              id="reserve-mpesaCode"
-              ref={codeRef}
-              className={`${inputClass} uppercase tracking-[0.18em]`}
-              autoCapitalize="characters"
-              autoCorrect="off"
-              spellCheck={false}
-              autoComplete="off"
-              placeholder="e.g. QH72KX9LMA"
-              value={code}
-              onChange={(event) => onCode(event.target.value)}
-              aria-invalid={Boolean(codeError)}
-              aria-describedby={codeError ? 'reserve-mpesaCode-error' : undefined}
-            />
-          </Field>
-        </div>
-      ) : null}
+      <div className="mt-4">
+        <Field id="reserve-mpesaCode" label="M-Pesa confirmation code" error={codeError}>
+          <input
+            id="reserve-mpesaCode"
+            className={`${inputClass} uppercase tracking-[0.18em]`}
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            autoComplete="off"
+            placeholder="e.g. QH72KX9LMA"
+            value={code}
+            onChange={(event) => onCode(event.target.value)}
+            aria-invalid={Boolean(codeError)}
+            aria-describedby={codeError ? 'reserve-mpesaCode-error' : undefined}
+          />
+        </Field>
+      </div>
     </div>
   )
 }
 
 function Success({ stats, reservation, onReset }) {
-  const held = reservation.status === 'pending' || reservation.status === 'confirmed'
-  const message = held
-    ? `Hi, I reserved a seat. My name is ${reservation.name}. M-Pesa code ${reservation.mpesaCode}.`
-    : `Hi, I left my details for the trading mentorship. My name is ${reservation.name}.`
+  const message = `Hi, I joined the waitlist. My name is ${reservation.name}. M-Pesa code ${reservation.mpesaCode}.`
 
   return (
     <div>
       <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#5c564a]">
-        {held ? 'Seat on hold' : 'Details saved'}
+        Seat on hold
       </p>
       <h2 className="mt-3 font-serif text-4xl leading-[1.05] tracking-tight break-words">
-        {held ? `${reservation.name.split(' ')[0]}, your seat is held.` : `${reservation.name.split(' ')[0]}, you are on the list.`}
+        {reservation.name.split(' ')[0]}, your seat is held.
       </h2>
-      {held ? (
-        <p className="mt-4 text-sm leading-relaxed text-[#4d5647]">
-          I have M-Pesa code <span className="font-medium tracking-[0.08em] text-[#172016]">{reservation.mpesaCode}</span>.
-          I will match it to the payment on <span className="whitespace-nowrap">{stats.phoneDisplay}</span>, then WhatsApp you on <span className="whitespace-nowrap">{reservation.phone}</span>. If it does not match, I release the seat.
-        </p>
-      ) : (
-        <p className="mt-4 text-sm leading-relaxed text-[#4d5647]">
-          This does not hold a seat. To secure one, send {formatMoney(stats.price, stats.currency)} to <span className="whitespace-nowrap">{stats.phoneDisplay}</span> and submit the M-Pesa code, or message me.
-        </p>
-      )}
+      <p className="mt-4 text-sm leading-relaxed text-[#4d5647]">
+        I have M-Pesa code <span className="font-medium tracking-[0.08em] text-[#172016]">{reservation.mpesaCode}</span>.
+        I will match it to the payment on <span className="whitespace-nowrap">{stats.phoneDisplay}</span>, then WhatsApp you on <span className="whitespace-nowrap">{reservation.phone}</span>. If it does not match, I release the seat.
+      </p>
       <a
         className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-[#172016] px-4 py-3.5 text-base font-medium text-paper hover:bg-[#2a3824]"
         href={whatsappLink(stats.whatsapp, message)}
@@ -404,7 +358,7 @@ function validate(values, stats) {
   if (!EXPERIENCE.some((item) => item.value === values.experience)) {
     errors.experience = 'Choose the option that fits.'
   }
-  if (!stats.full && values.paid) {
+  if (!stats.full) {
     const raw = values.mpesaCode.toUpperCase()
     const word = raw.match(/\b[A-Z0-9]{10}\b/)
     const compact = raw.replace(/[^A-Z0-9]/g, '')

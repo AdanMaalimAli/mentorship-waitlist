@@ -175,15 +175,13 @@ function createReservation(body, rows) {
   const phone = normalizePhone(body.phone)
   const experience = clean(body.experience, 20)
   const note = clean(body.note, 400)
-  const intent = body.intent === 'pay' || body.intent === 'details' ? body.intent : ''
-
   if (name.length < 2 || !/[a-z]/i.test(name)) {
     return fail(400, 'Enter your full name.')
   }
   if (!phone) return fail(400, 'Enter a valid Kenyan phone number.')
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail(400, 'Enter a valid email address.')
   if (!EXPERIENCE.has(experience)) return fail(400, 'Choose where you are with trading.')
-  if (!intent) return fail(400, 'Choose whether to pay or just leave your details.')
+  if (body.intent !== 'pay') return fail(400, 'Send the M-Pesa payment before you can join.')
 
   const holding = rows.find(
     (row) => row.phone === phone && (row.status === 'pending' || row.status === 'confirmed'),
@@ -194,55 +192,33 @@ function createReservation(body, rows) {
 
   const waiting = rows.find((row) => row.phone === phone && row.status === 'waitlist')
   const stats = publicStats(rows)
-
-  if (intent === 'pay') {
-    if (stats.full) {
-      return fail(409, 'The seats are all held. Save your details instead, and do not send money yet.')
-    }
-    const mpesaCode = extractCode(body.mpesaCode)
-    if (!mpesaCode) {
-      return fail(400, 'Paste the code from the M-Pesa SMS. It is about 10 letters and numbers.')
-    }
-    const codeTaken = rows.some(
-      (row) => row.mpesaCode === mpesaCode && row.status !== 'released',
-    )
-    if (codeTaken) return fail(409, 'That M-Pesa code is already on a seat.')
-
-    const now = new Date().toISOString()
-    if (waiting) {
-      waiting.name = name
-      waiting.email = email
-      waiting.experience = experience
-      waiting.note = note
-      waiting.mpesaCode = mpesaCode
-      waiting.amount = SETTINGS.price
-      waiting.status = 'pending'
-      waiting.updatedAt = now
-      console.log(`Hold: ${waiting.name} · ${prettyPhone(phone)} · ${mpesaCode}`)
-      return ok(201, waiting, rows)
-    }
-
-    const row = {
-      id: crypto.randomUUID(),
-      createdAt: now,
-      updatedAt: now,
-      name,
-      phone,
-      email,
-      experience,
-      note,
-      mpesaCode,
-      amount: SETTINGS.price,
-      status: 'pending',
-    }
-    rows.push(row)
-    console.log(`Hold: ${row.name} · ${prettyPhone(phone)} · ${mpesaCode}`)
-    return ok(201, row, rows)
+  if (stats.full) {
+    return fail(409, 'The seats are all held. Do not send money until one is released.')
   }
 
-  if (waiting) return fail(409, 'You are already on the list. I will use the details I have.')
+  const mpesaCode = extractCode(body.mpesaCode)
+  if (!mpesaCode) {
+    return fail(400, 'Paste the code from the M-Pesa SMS. It is about 10 letters and numbers.')
+  }
+  const codeTaken = rows.some(
+    (row) => row.mpesaCode === mpesaCode && row.status !== 'released',
+  )
+  if (codeTaken) return fail(409, 'That M-Pesa code is already on a seat.')
 
   const now = new Date().toISOString()
+  if (waiting) {
+    waiting.name = name
+    waiting.email = email
+    waiting.experience = experience
+    waiting.note = note
+    waiting.mpesaCode = mpesaCode
+    waiting.amount = SETTINGS.price
+    waiting.status = 'pending'
+    waiting.updatedAt = now
+    console.log(`Hold: ${waiting.name} · ${prettyPhone(phone)} · ${mpesaCode}`)
+    return ok(201, waiting, rows)
+  }
+
   const row = {
     id: crypto.randomUUID(),
     createdAt: now,
@@ -252,12 +228,12 @@ function createReservation(body, rows) {
     email,
     experience,
     note,
-    mpesaCode: '',
-    amount: null,
-    status: 'waitlist',
+    mpesaCode,
+    amount: SETTINGS.price,
+    status: 'pending',
   }
   rows.push(row)
-  console.log(`Details: ${row.name} · ${prettyPhone(phone)}`)
+  console.log(`Hold: ${row.name} · ${prettyPhone(phone)} · ${mpesaCode}`)
   return ok(201, row, rows)
 }
 

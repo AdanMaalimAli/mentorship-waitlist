@@ -82,12 +82,12 @@ function Site({ stats, refresh }) {
       a: 'Submitting a code holds the seat while I match it to the M-Pesa message. I WhatsApp you when it matches. If it does not match, I release the seat.',
     },
     {
-      q: 'Can I just leave my details?',
-      a: 'Yes. Leave the payment box unchecked and save your details. That does not hold a seat. I will contact you on WhatsApp.',
+      q: 'Can I join before I pay?',
+      a: `No. Send ${money} to ${stats.phoneDisplay} with M-Pesa, then submit the confirmation code. Without that code the form will not add you.`,
     },
     {
       q: 'What if every seat is held?',
-      a: 'The form switches to details only. Do not send money until I tell you a seat is open.',
+      a: 'The form closes. Do not send money until a seat is released.',
     },
     {
       q: 'What does the fee cover?',
@@ -132,11 +132,7 @@ function Site({ stats, refresh }) {
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted">
               I&apos;m opening a trading mentorship on {date}. {stats.spotsLeft} of the {stats.spotsTotal} seats are still open. The fee is{' '}
-              {money} {stats.priceNote}. Pay it with M-Pesa to{' '}
-              <a className="text-paper underline decoration-gold underline-offset-4" href={phoneHref}>
-                {stats.phoneDisplay}
-              </a>
-              , or leave your details and I will reach you on WhatsApp.
+              {money} {stats.priceNote}. You join only after you pay {stats.phoneDisplay} with M-Pesa and paste the confirmation code.
             </p>
 
             <div className="mt-8">
@@ -261,9 +257,9 @@ function Site({ stats, refresh }) {
 
 function SeatDetails({ stats, money }) {
   const steps = [
-    'Leave your name, phone, and email.',
     `Send ${money} to ${stats.phoneDisplay} with M-Pesa Send Money.`,
-    'Paste the confirmation code. I match it, then WhatsApp you.',
+    'Paste the confirmation code with your name, phone, and email.',
+    'I match the payment, then WhatsApp you. No code, no seat.',
   ]
   return (
     <>
