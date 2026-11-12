@@ -1,9 +1,13 @@
 import express from 'express'
 import crypto from 'node:crypto'
+import dns from 'node:dns'
 import fs from 'node:fs'
 import path from 'node:path'
+import tls from 'node:tls'
 import { fileURLToPath } from 'node:url'
 import { MongoClient } from 'mongodb'
+
+dns.setDefaultResultOrder('ipv4first')
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -144,6 +148,7 @@ async function start() {
     await connectDb()
   } catch (error) {
     console.error('Could not reach Atlas.', error.message)
+    console.error('Check the connection string. Encode any special characters in the password, and allow 0.0.0.0/0 in Atlas Network Access.')
     process.exit(1)
   }
 
@@ -333,14 +338,33 @@ function update(mutator) {
   return run
 }
 
+function atlasUri() {
+  let uri = String(process.env.MONGODB_URI || '').trim()
+  if (
+    (uri.startsWith('"') && uri.endsWith('"')) ||
+    (uri.startsWith("'") && uri.endsWith("'"))
+  ) {
+    uri = uri.slice(1, -1).trim()
+  }
+  return uri
+}
+
 async function connectDb() {
-  const uri = process.env.MONGODB_URI
+  const uri = atlasUri()
   if (!uri) {
     console.log('No MONGODB_URI. Saving seats in a local file.')
     return
   }
 
-  const client = new MongoClient(uri, { serverSelectionTimeoutMS: 10000 })
+  const client = new MongoClient(uri, {
+    serverSelectionTimeoutMS: 10000,
+    tls: true,
+    autoSelectFamily: false,
+    secureContext: tls.createSecureContext({
+      minVersion: 'TLSv1.2',
+      maxVersion: 'TLSv1.2',
+    }),
+  })
   await client.connect()
   reservations = client.db(process.env.MONGODB_DB || 'mentorship').collection('reservations')
   const count = await reservations.countDocuments()
