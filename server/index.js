@@ -14,7 +14,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 /**
  * Cohort settings. The page reads these from /api/stats.
  * phoneDisplay is the number people see. whatsapp is the same line without a plus or leading zero.
- * priceNote is the wording after the fee, for example "per month".
+ * priceNote is the wording after the fee, for example "for the whole two months".
  * startsAt is the opening moment, Nairobi time (UTC+3).
  */
 const SETTINGS = {
@@ -22,7 +22,7 @@ const SETTINGS = {
   alreadyTaken: 9,
   price: 10000,
   currency: 'KES',
-  priceNote: 'per month',
+  priceNote: 'for the whole two months',
   phoneDisplay: '0726 039 327',
   phoneTel: '+254726039327',
   whatsapp: '254726039327',

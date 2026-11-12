@@ -55,8 +55,8 @@ function Site({ stats, refresh }) {
 
   const facts = [
     {
-      title: 'One period, one fee',
-      body: `The fee is ${money} ${stats.priceNote}, starting ${date}. When that period ends, staying on is another ${money}.`,
+      title: 'One fee, two months',
+      body: `The fee is ${money} ${stats.priceNote}, starting ${date}. That one payment covers the mentorship.`,
     },
     {
       title: 'Your trades stay yours',
@@ -91,7 +91,7 @@ function Site({ stats, refresh }) {
     },
     {
       q: 'What does the fee cover?',
-      a: `The mentorship from ${date}. The fee is ${money} ${stats.priceNote}. The next period is the same fee if you stay.`,
+      a: `The mentorship runs for two months from ${date}. One payment of ${money} covers the whole mentorship.`,
     },
     {
       q: 'Do you guarantee profits?',
@@ -131,7 +131,7 @@ function Site({ stats, refresh }) {
               <span className="mt-1 block italic text-gold">in the room.</span>
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted">
-              I&apos;m opening a trading mentorship on {date}. {stats.spotsLeft} of the {stats.spotsTotal} seats are still open. The fee is{' '}
+              I&apos;m opening a two-month trading mentorship on {date}. {stats.spotsLeft} of the {stats.spotsTotal} seats are still open. The fee is{' '}
               {money} {stats.priceNote}. You join only after you pay {stats.phoneDisplay} with M-Pesa and paste the confirmation code.
             </p>
 
@@ -156,7 +156,7 @@ function Site({ stats, refresh }) {
 
         <section className="border-t border-line" aria-labelledby="about-heading">
           <h2 id="about-heading" className="sr-only">
-            What the month is
+            What the mentorship is
           </h2>
           <div className="mx-auto max-w-6xl sm:grid sm:grid-cols-3">
             {facts.map((fact) => (
@@ -182,7 +182,7 @@ function Site({ stats, refresh }) {
             </div>
             <div className="max-w-md">
               <p className="text-lg leading-relaxed text-muted">
-                Send the first payment with M-Pesa Send Money to hold your seat. I match the message before the seat is final.
+                Send this payment with M-Pesa Send Money to hold your seat. It covers the full two months. I match the message before the seat is final.
               </p>
               <a
                 href="#reserve"

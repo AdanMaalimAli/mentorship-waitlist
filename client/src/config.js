@@ -8,7 +8,7 @@ export const FALLBACK = {
   full: false,
   price: 10000,
   currency: 'KES',
-  priceNote: 'per month',
+  priceNote: 'for the whole two months',
   phoneDisplay: '0726 039 327',
   phoneTel: '+254726039327',
   whatsapp: '254726039327',
